@@ -1,4 +1,4 @@
-# 🎬 Movies dataset template
+# App for Module 2 Microskill 7
 
 A simple Streamlit app showing movie data from [The Movie Database (TMDB)](https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata). 
 
