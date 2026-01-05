@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 
 # --- 1. SETUP & CACHING ---
-st.set_page_config(page_title="Module 2 Microskill 7", layout="wide")
+st.set_page_config(page_title="Module 2: Sex-Specific Modeling", layout="wide")
 
 @st.cache_data
 def build_eicu_data():
@@ -104,103 +104,41 @@ def get_processed_data(df_raw):
     return x
 
 # --- 2. SIDEBAR NAVIGATION ---
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Select Activity:", 
-    ["1. Data Inspection & Stats",
-     "2. Data Preprocessing", 
-     "3. Gender Bias Analysis",
-     "4. Univariate Analysis",
-     "5. Multivariate Analysis"])
+st.sidebar.title("Module Navigation")
+page = st.sidebar.radio("Go to:", 
+    ["1. Data Processing", 
+     "2. Exploratory Analysis",
+     "3. Univariate Analysis",
+     "4. Multivariate Analysis"])
 
-st.sidebar.info("Use the menu above to navigate through the interactive programs.")
+st.sidebar.info("Use the menu above to follow the module structure.")
 
 # --- 3. PAGE LOGIC ---
 
-# === ACTIVITY 1: DATA INSPECTION & STATS ===
-if page == "1. Data Inspection & Stats":
-    st.title("Activity 1: Data Inspection & Stats")
+# === 1. DATA PROCESSING ===
+if page == "1. Data Processing":
+    st.title("Data Processing")
     
-    # *** ADDED INSTRUCTION HERE ***
-    st.info("👈 **Navigation Tip:** Open the sidebar on the left to access other activities (Data Processing, Gender Bias Analysis, Univariate & Multivariate Analysis).")
+    st.markdown("""
+    ### Removing Irrelevant Columns
+    One of the first logical steps is to remove the columns that contain no informational value. Some columns are unique random numeric identifiers (e.g., patient_id) with no discernible meaning. 
     
-    with st.spinner("Downloading and Loading Data..."):
-        df_raw = build_eicu_data()
-        df_cleaned = df_raw.drop(columns=['patient_id', 'hospital_id', 'admission_id', 'admission_year', 'weight_discharge', 'discharge_location'])
-
-    st.markdown("Analyze mortality rates across different demographic groups with optional range filtering.")
+    We'll also remove weight_discharge and discharge_location because they will not be used as inputs.
     
-    # Range Filtering Logic
-    col_grp, col_filt = st.columns([1, 2])
-    
-    with col_grp:
-        group_option = st.selectbox(
-            "Select Group to Analyze:",
-            ['ethnicity', 'gender', 'hospital_region', 'admission_source'],
-            help="Choose a demographic or hospital characteristic to split the patient data by. The table below will update to show mortality rates for each subgroup."
-        )
+    ### Fast Preprocessing
+    We will save time with a heavy-handed approach:
+    1. One-hot encode all categorical variables.
+    2. Impute missing values in each numerical column with the mean.
+    """)
 
-    df_analysis = df_cleaned.copy() 
-
-    with col_filt:
-        enable_filter = st.toggle("Filter by Numerical Range?", help="Toggle this on to restrict the analysis to a specific subset of patients (e.g., only older patients).")
-        
-        if enable_filter:
-            numeric_options = ['age', 'weight_admission', 'height', 'lab_creatinine', 'lab_wbc', 'lab_glucose']
-            filter_col = st.selectbox("Select Feature for Range:", numeric_options, help="Choose the numerical variable you want to use as a filter.")
-            
-            df_analysis[filter_col] = pd.to_numeric(df_analysis[filter_col], errors='coerce')
-            min_val = float(df_analysis[filter_col].min())
-            max_val = float(df_analysis[filter_col].max())
-            
-            if pd.isna(min_val) or pd.isna(max_val):
-                st.warning("Selected column has no valid data.")
-            else:
-                range_vals = st.slider(
-                    f"Select {filter_col} Range:",
-                    min_value=min_val, max_value=max_val, value=(min_val, max_val),
-                    help=f"Drag the sliders to exclude patients outside this {filter_col} range."
-                )
-                df_analysis = df_analysis[
-                    (df_analysis[filter_col] >= range_vals[0]) & 
-                    (df_analysis[filter_col] <= range_vals[1])
-                ]
-                st.caption(f"Showing {len(df_analysis)} patients in this range.")
-
-    st.divider()
-
-    if group_option:
-        stats = df_analysis.groupby(group_option)['in_hospital_mortality'].agg(['count', 'mean']).reset_index()
-        stats.columns = [group_option.capitalize(), 'Patient Count', 'Mortality Rate']
-        stats['Mortality Rate Display'] = stats['Mortality Rate'].apply(lambda x: f"{x:.2%}")
-        stats = stats.sort_values('Patient Count', ascending=False)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader(f"Statistics by {group_option.capitalize()}")
-            st.dataframe(stats[[group_option.capitalize(), 'Patient Count', 'Mortality Rate Display']], hide_index=True)
-        with col2:
-            st.subheader(f"Mortality Rate Comparison")
-            st.bar_chart(stats.set_index(group_option.capitalize())['Mortality Rate'])
-
-# === ACTIVITY 2: DATA PROCESSING ===
-elif page == "2. Data Preprocessing":
-    st.title("Activity 2: Data Processing")
-    
+    # Initialize state
     if 'proc_run' not in st.session_state:
         st.session_state.proc_run = False
         
-    with st.spinner("Preparing raw data..."):
+    with st.spinner("Loading Raw Data..."):
         df_raw = build_eicu_data()
-    
-    st.write("### Preprocessing Workflow")
-    st.markdown("""
-    This module will transform the raw clinical data into a machine-learning ready format:
-    1. **Drop IDs**: Remove identifiers like `patient_id` and `admission_id`.
-    2. **Impute Missing**: Fill missing numerical values with the mean.
-    3. **One-Hot Encoding**: Convert categorical variables (e.g., Ethnicity) into binary columns.
-    """)
-    
-    if st.button("Run Fast Preprocessing", help="Click to execute the cleaning pipeline. This replaces missing data and converts text labels into numbers."):
+
+    if st.button("Run Preprocessing Pipeline", help="Clean the data, impute missing values, and prepare it for modeling."):
         st.session_state.proc_run = True
 
     if st.session_state.proc_run:
@@ -208,7 +146,7 @@ elif page == "2. Data Preprocessing":
             df_processed = get_processed_data(df_raw)
             
         st.success("Preprocessing Complete!")
-        st.subheader("Processed Data Preview")
+        st.write(f"Processed Data Shape: {df_processed.shape}")
         st.dataframe(df_processed.head())
         
         csv = df_processed.to_csv(index=False).encode('utf-8')
@@ -217,19 +155,25 @@ elif page == "2. Data Preprocessing":
             csv, 
             "eicu_processed.csv", 
             "text/csv", 
-            key='download-csv-processed',
-            help="Download the cleaned dataset to your computer for further analysis."
+            key='download-csv-processed'
         )
 
-# === ACTIVITY 3: GENDER BIAS ANALYSIS ===
-elif page == "3. Gender Bias Analysis":
-    st.title("Activity 3: Gender Bias Analysis")
-    st.markdown("Comparing mean lab values between Male and Female patients, split by mortality status.")
+# === 2. EXPLORATORY ANALYSIS ===
+elif page == "2. Exploratory Analysis":
+    st.title("Exploratory Analysis")
+    st.markdown("""
+    ### Visualize the sex-specific patterns
+    Before jumping into modeling, it is important to ask: "Do males and females behave differently in this data?" In many clinical datasets, combining all patients into a single analysis can blur important differences. Let’s split the lens and take a closer look.
+    """)
 
     with st.spinner("Preparing Data..."):
         df_raw = build_eicu_data()
         df_processed = get_processed_data(df_raw)
+        if 'gender' not in df_processed.columns:
+            df_processed['gender'] = df_raw['gender']
 
+    # --- VISUALIZATION ---
+    st.subheader("Interactive Statistics")
     available_vars = ['age', 'height','weight_admission', 'lab_bun','lab_creatinine','lab_sodium',
                       'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride',
                       'lab_platelets','lab_rbc','lab_calcium','lab_mcv','lab_mchc',
@@ -239,54 +183,66 @@ elif page == "3. Gender Bias Analysis":
         "Select Variables to Compare:", 
         available_vars, 
         default=['lab_bun','lab_creatinine','lab_sodium'],
-        help="Select one or more clinical variables. The chart below will show the average value of these variables for men vs. women, separated by whether they survived."
+        help="Select variables to compare mean values between men and women, split by survival."
     )
 
-    if not selected_variables:
-        st.warning("Please select at least one variable.")
-        st.stop()
+    if selected_variables:
+        df_male = df_processed[df_processed['gender'] == "Male"]
+        df_female = df_processed[df_processed['gender'] == "Female"]
 
-    if 'gender' not in df_processed.columns:
-        df_processed['gender'] = df_raw['gender']
+        female_survived = [df_female.loc[df_female['in_hospital_mortality'] == 0][str(i)].mean() for i in selected_variables]
+        female_dead = [df_female.loc[df_female['in_hospital_mortality'] == 1][str(i)].mean() for i in selected_variables]
+        male_survived = [df_male.loc[df_male['in_hospital_mortality'] == 0][str(i)].mean() for i in selected_variables]
+        male_dead = [df_male.loc[df_male['in_hospital_mortality'] == 1][str(i)].mean() for i in selected_variables]
 
-    df_male = df_processed[df_processed['gender'] == "Male"]
-    df_female = df_processed[df_processed['gender'] == "Female"]
+        Year = ['Survival'] * len(female_survived) + ['In hospital mortality'] * len(female_dead)
+        Female = female_survived + female_dead
+        Male = male_survived + male_dead
+        
+        df_plot = pd.DataFrame({'index': selected_variables * 2, 'Year': Year, 'Female': Female, 'Male': Male})
+        df_plot.set_index(['Year', 'index'], inplace=True)
+        df0 = df_plot.reorder_levels(['index', 'Year']).sort_index().unstack(level=-1)
 
-    female_survived = [df_female.loc[df_female['in_hospital_mortality'] == 0][str(i)].mean() for i in selected_variables]
-    female_dead = [df_female.loc[df_female['in_hospital_mortality'] == 1][str(i)].mean() for i in selected_variables]
-    male_survived = [df_male.loc[df_male['in_hospital_mortality'] == 0][str(i)].mean() for i in selected_variables]
-    male_dead = [df_male.loc[df_male['in_hospital_mortality'] == 1][str(i)].mean() for i in selected_variables]
+        colors = plt.cm.Paired.colors
+        fig, ax = plt.subplots(figsize=(10, 6))
+        (df0['Female'] + df0['Male']).plot(kind='barh', color=[colors[3], colors[2]], rot=0, ax=ax)
+        df0['Male'].plot(kind='barh', color=[colors[5], colors[4]], rot=0, ax=ax)
+        ax.legend([f'{val} ({context})' for val, context in df0.columns])
+        ax.set_title("Mean Values by Mortality Status (Stacked by Sex)")
+        st.pyplot(fig)
 
-    Year = ['Survival'] * len(female_survived) + ['In hospital mortality'] * len(female_dead)
-    Female = female_survived + female_dead
-    Male = male_survived + male_dead
+    # --- QUESTION 1 ---
+    st.divider()
+    st.subheader("Question 1")
+    st.markdown("Why is it important to analyze clinical data separately for males and females before modeling?")
     
-    df_plot = pd.DataFrame({'index': selected_variables * 2, 'Year': Year, 'Female': Female, 'Male': Male})
-    df_plot.set_index(['Year', 'index'], inplace=True)
-    df0 = df_plot.reorder_levels(['index', 'Year']).sort_index().unstack(level=-1)
-
-    st.write("---")
-    colors = plt.cm.Paired.colors
-    fig, ax = plt.subplots(figsize=(10, 6))
+    q1_options = {
+        "A": "To reduce the number of observations",
+        "B": "To make the dataset more complex",
+        "C": "To identify sex-specific patterns that might be masked in pooled data",
+        "D": "To apply the same model to both groups without changes"
+    }
     
-    (df0['Female'] + df0['Male']).plot(kind='barh', color=[colors[3], colors[2]], rot=0, ax=ax)
-    df0['Male'].plot(kind='barh', color=[colors[5], colors[4]], rot=0, ax=ax)
+    q1_choice = st.radio("Select Answer:", list(q1_options.keys()), format_func=lambda x: f"{x}) {q1_options[x]}", key="q1")
+    
+    if st.button("Submit Question 1"):
+        if q1_choice == "C":
+            st.success("Correct! Clinical data often contains meaningful differences between males and females. When we analyze the entire dataset as a single group, these differences can get averaged out or hidden.")
+        else:
+            st.error("Try again.")
 
-    ax.legend([f'{val} ({context})' for val, context in df0.columns])
-    ax.set_xlabel("Mean Value")
-    ax.set_title("Mean Values by Mortality Status (Stacked by Sex)")
-
-    st.pyplot(fig)
-
-# === ACTIVITY 4: UNIVARIATE ANALYSIS ===
-elif page == "4. Univariate Analysis":
-    st.title("Activity 4: Univariate Analysis (Odds Ratios)")
-    st.markdown("Fits a Logistic Regression for each variable individually to determine its Odds Ratio (OR).")
+# === 3. UNIVARIATE ANALYSIS ===
+elif page == "3. Univariate Analysis":
+    st.title("Sex-specific Association Models")
+    st.markdown("""
+    We will now perform a univariate analysis using odds ratios separately for females and males. 
+    
+    By calculating odds ratios within each sex, we can uncover whether a variable (like elevated lactate) has differential predictive power for mortality in women versus men.
+    """)
 
     with st.spinner("Preparing Data & Models..."):
         df_raw = build_eicu_data()
         df_processed = get_processed_data(df_raw)
-        
         if 'gender' not in df_processed.columns:
             df_processed['gender'] = df_raw['gender']
 
@@ -301,52 +257,36 @@ elif page == "4. Univariate Analysis":
                 'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride','lab_platelets','lab_rbc','lab_calcium','lab_mcv',
                 'lab_mchc','lab_bicarbonate','lab_mch','lab_rdw','lab_albumin']
     
-    selected_variables = st.multiselect(
-        "Select Variables to Model:",
-        all_vars,
-        default=all_vars[:10],
-        help="Choose the variables to analyze. The app will build a separate logistic regression model for each variable selected to see how strongly it predicts mortality."
-    )
+    st.subheader("Calculate Odds Ratios")
+    selected_variables = st.multiselect("Select Variables:", all_vars, default=all_vars[:10])
 
-    if st.button("Run Regression Models", help="Click to calculate Odds Ratios for the selected variables."):
-        if not selected_variables:
-            st.warning("Please select at least one variable.")
-            st.stop()
-
+    if st.button("Run Regression Models"):
         vals_male, vals_female, vals_full = [], [], []
         
         progress_bar = st.progress(0)
-        
         for i, univ_analysis in enumerate(selected_variables):
             progress_bar.progress((i + 1) / len(selected_variables))
             
             # Male
             reg_male = smf.logit(f'in_hospital_mortality ~ {univ_analysis}', data=train_dat_male).fit(disp=0)
-            conf_male = np.exp(reg_male.conf_int())
-            conf_male['OR'] = np.exp(reg_male.params)
-            vals_male.append(conf_male.loc[str(univ_analysis), 'OR'])
+            vals_male.append(np.exp(reg_male.params).iloc[1]) # Get OR for the variable
             
             # Female
             reg_female = smf.logit(f'in_hospital_mortality ~ {univ_analysis}', data=train_dat_female).fit(disp=0)
-            conf_female = np.exp(reg_female.conf_int())
-            conf_female['OR'] = np.exp(reg_female.params)
-            vals_female.append(conf_female.loc[str(univ_analysis), 'OR'])
+            vals_female.append(np.exp(reg_female.params).iloc[1])
             
             # Full
             reg_full = smf.logit(f'in_hospital_mortality ~ {univ_analysis}', data=train_dat_full).fit(disp=0)
-            conf_full = np.exp(reg_full.conf_int())
-            conf_full['OR'] = np.exp(reg_full.params)
-            vals_full.append(conf_full.loc[str(univ_analysis), 'OR'])
+            vals_full.append(np.exp(reg_full.params).iloc[1])
 
         progress_bar.empty()
 
-        st.subheader("Odds Ratios by Gender")
+        fig, ax = plt.subplots(figsize=(12, len(selected_variables) * 0.6 + 2))
         bar_width = 0.25
         r1 = np.arange(len(selected_variables))
         r2 = [x + bar_width for x in r1]
         r3 = [x + bar_width for x in r2]
         
-        fig, ax = plt.subplots(figsize=(12, len(selected_variables) * 0.6 + 2))
         ax.barh(r1, vals_female, bar_width, label='Female', color='tab:orange', alpha=0.8)
         ax.barh(r2, vals_male, bar_width, label='Male', color='tab:blue', alpha=0.8)
         ax.barh(r3, vals_full, bar_width, label='All Cohort', color='tab:green', alpha=0.8)
@@ -354,139 +294,114 @@ elif page == "4. Univariate Analysis":
         ax.set_xlabel('Odds Ratio (OR)')
         ax.set_yticks([r + bar_width for r in range(len(selected_variables))])
         ax.set_yticklabels(selected_variables)
-        ax.set_title('Univariate Analysis: Predictors of Mortality')
+        ax.set_title('Univariate Analysis: Odds Ratios')
         ax.legend()
         ax.axvline(x=1, color='gray', linestyle='--', linewidth=0.8)
-
         st.pyplot(fig)
 
-# === ACTIVITY 5: MULTIVARIATE ANALYSIS ===
-elif page == "5. Multivariate Analysis":
-    st.title("Activity 5: Multivariate Analysis (AUROC)")
+# === 4. MULTIVARIATE ANALYSIS ===
+elif page == "4. Multivariate Analysis":
+    st.title("Performance Evaluation by Sex")
     st.markdown("""
-    This model considers **multiple variables simultaneously** to predict mortality. 
-    We compare the Area Under the Receiver Operating Characteristic (AUROC) curve.
+    Now we will evaluate how well our models perform not just overall, but within each sex. 
+    We use the AUROC (Area Under the Receiver Operating Characteristic Curve) to measure discriminative ability.
     """)
 
-    # 1. Load Data
+    # Data Loading
     with st.spinner("Preparing Data..."):
         df_raw = build_eicu_data()
         df_processed = get_processed_data(df_raw)
-        
-        # Ensure gender exists
         if 'gender' not in df_processed.columns:
             df_processed['gender'] = df_raw['gender']
 
-    # 2. Interactive Range Filter
-    st.markdown("### 1. Filter Data Population")
-    st.caption("Restrict the model to a specific patient range (e.g., Age > 60).")
+    # Filter Logic
+    st.markdown("#### 1. Population Filter (Optional)")
+    enable_filter = st.checkbox("Filter Patient Population?")
+    df_model_input = df_processed.copy()
     
-    numeric_options = ['age', 'weight_admission', 'height', 'lab_creatinine', 'lab_wbc', 'lab_glucose']
-    filter_col = st.selectbox(
-        "Select Feature to Filter By:", 
-        numeric_options,
-        help="Select a variable to limit the patient population. For example, select 'age' to only study older patients."
-    )
-    
-    # Calculate bounds
-    min_val = float(df_processed[filter_col].min())
-    max_val = float(df_processed[filter_col].max())
-    
-    # Range Slider
-    range_vals = st.slider(
-        f"Select {filter_col} Range:",
-        min_value=min_val, max_value=max_val, value=(min_val, max_val),
-        help=f"Adjust the sliders to exclude patients outside the desired {filter_col} range."
-    )
-    
-    # Apply Filter
-    df_model_input = df_processed[
-        (df_processed[filter_col] >= range_vals[0]) & 
-        (df_processed[filter_col] <= range_vals[1])
-    ]
-    
-    st.write(f"**Patients in selected range:** {len(df_model_input)} (Original: {len(df_processed)})")
+    if enable_filter:
+        numeric_options = ['age', 'weight_admission', 'height', 'lab_creatinine']
+        filter_col = st.selectbox("Select Feature:", numeric_options)
+        min_val, max_val = float(df_processed[filter_col].min()), float(df_processed[filter_col].max())
+        range_vals = st.slider(f"Range for {filter_col}:", min_val, max_val, (min_val, max_val))
+        df_model_input = df_processed[(df_processed[filter_col] >= range_vals[0]) & (df_processed[filter_col] <= range_vals[1])]
 
-    # 3. Interactive Variable Selection
-    st.markdown("### 2. Select Model Features")
+    # Variable Selection
+    st.markdown("#### 2. Model Features")
     all_vars = ['age', 'height','weight_admission', 'lab_bun','lab_creatinine','lab_sodium',
                 'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride','lab_platelets','lab_rbc','lab_calcium','lab_mcv',
                 'lab_mchc','lab_bicarbonate','lab_mch','lab_rdw','lab_albumin']
-    
-    selected_predictors = st.multiselect(
-        "Choose predictors for the multivariate model:",
-        all_vars,
-        default=all_vars,
-        help="Choose which variables the model should use to predict mortality. All selected variables will be used in a single logistic regression model."
-    )
+    selected_predictors = st.multiselect("Choose predictors:", all_vars, default=all_vars)
 
-    # 4. Run Analysis
-    if st.button("Train Multivariate Models", help="Click to train the models and compare their accuracy (AUROC) for men vs. women."):
+    if st.button("Train & Evaluate Models"):
         if not selected_predictors:
-            st.error("Please select at least one predictor.")
+            st.error("Select at least one predictor.")
             st.stop()
             
-        if len(df_model_input) < 100:
-            st.error("Too few patients remaining after filtering. Please widen the range.")
-            st.stop()
-
-        # Split Data (Based on filtered input)
         df_male = df_model_input[df_model_input['gender'] == "Male"]
         df_female = df_model_input[df_model_input['gender'] == "Female"]
-
+        
+        # Train/Test Split
         train_dat_female, test_dat_female = train_test_split(df_female, test_size=0.2, random_state=2025)
         train_dat_male, test_dat_male = train_test_split(df_male, test_size=0.2, random_state=2025)
         train_dat, test_dat = train_test_split(df_model_input, test_size=0.2, random_state=2025)
 
-        vals_male = []
-        vals_female = []
-        vals_full = []
-        
-        with st.spinner("Training Models..."):
-            try:
-                # --- Male Model ---
-                reg_male = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat_male).fit(disp=0)
-                roc_male = roc_auc_score(test_dat_male['in_hospital_mortality'], reg_male.predict(test_dat_male[selected_predictors]))
-                vals_male.append(roc_male)
+        vals_male, vals_female, vals_full = [], [], []
 
-                # --- Female Model ---
-                reg_female = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat_female).fit(disp=0)
-                roc_female = roc_auc_score(test_dat_female['in_hospital_mortality'], reg_female.predict(test_dat_female[selected_predictors]))
-                vals_female.append(roc_female)
+        try:
+            # Male
+            reg_male = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat_male).fit(disp=0)
+            vals_male.append(roc_auc_score(test_dat_male['in_hospital_mortality'], reg_male.predict(test_dat_male[selected_predictors])))
+            
+            # Female
+            reg_female = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat_female).fit(disp=0)
+            vals_female.append(roc_auc_score(test_dat_female['in_hospital_mortality'], reg_female.predict(test_dat_female[selected_predictors])))
+            
+            # Full
+            reg = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat).fit(disp=0)
+            vals_full.append(roc_auc_score(test_dat['in_hospital_mortality'], reg.predict(test_dat[selected_predictors])))
+            
+            # Plot
+            fig, ax = plt.subplots(figsize=(8, 5))
+            r = np.arange(1)
+            width = 0.25
+            
+            plt.bar(r, vals_female, width, label='Female', color='tab:orange')
+            plt.bar(r + width, vals_male, width, label='Male', color='tab:blue')
+            plt.bar(r + 2*width, vals_full, width, label='All Cohort', color='tab:green')
+            
+            plt.ylabel('AUROC')
+            plt.title('Multivariate Analysis Performance')
+            plt.xticks([])
+            plt.ylim(0.5, 1.0)
+            plt.legend(loc='lower right')
+            
+            # Add labels
+            plt.text(r - 0.05, vals_female[0] + 0.01, f"{vals_female[0]:.3f}")
+            plt.text(r + width - 0.05, vals_male[0] + 0.01, f"{vals_male[0]:.3f}")
+            plt.text(r + 2*width - 0.05, vals_full[0] + 0.01, f"{vals_full[0]:.3f}")
+            
+            st.pyplot(fig)
 
-                # --- Full Model ---
-                reg = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat).fit(disp=0)
-                roc_full = roc_auc_score(test_dat['in_hospital_mortality'], reg.predict(test_dat[selected_predictors]))
-                vals_full.append(roc_full)
-            except Exception as e:
-                st.error(f"Model failed to converge. Try selecting fewer variables or more patients. Error: {e}")
-                st.stop()
+        except Exception as e:
+            st.error(f"Error training model: {e}")
 
-        # 5. Plotting
-        st.subheader("Model Performance (AUROC)")
-        
-        bar_width = 0.25
-        fig, ax = plt.subplots(figsize=(8, 5))
-        
-        r1 = np.arange(len(vals_full))
-        r2 = [x + bar_width for x in r1]
-        r3 = [x + bar_width for x in r2]
-
-        plt.bar(r1, vals_female, bar_width, label='Female', color='tab:orange', capsize=5)
-        plt.bar(r2, vals_male, bar_width, label='Male', color='tab:blue', capsize=5)
-        plt.bar(r3, vals_full, bar_width, label='All cohort', color='tab:green', capsize=5)
-
-        plt.ylabel('AUROC')
-        plt.title('Multivariate Analysis Performance')
-        plt.xticks([r + bar_width for r in range(len(vals_full))], ['Logistic Regression'])
-        plt.ylim(0.5, 1.0)
-        plt.legend(loc='lower right')
-        
-        for i, v in enumerate(vals_female):
-            plt.text(r1[i] - 0.05, v + 0.01, f"{v:.3f}")
-        for i, v in enumerate(vals_male):
-            plt.text(r2[i] - 0.05, v + 0.01, f"{v:.3f}")
-        for i, v in enumerate(vals_full):
-            plt.text(r3[i] - 0.05, v + 0.01, f"{v:.3f}")
-
-        st.pyplot(fig)
+    # --- QUESTION 2 ---
+    st.divider()
+    st.subheader("Question 2")
+    st.markdown("When comparing the outcomes of these sex-specific models, what are we most interested in identifying?")
+    
+    q2_options = {
+        "A": "The variables with the highest missing values",
+        "B": "The computational time for each model",
+        "C": "Any performance gaps or patterns that differ between sexes",
+        "D": "Whether the models have the same coefficients"
+    }
+    
+    q2_choice = st.radio("Select Answer:", list(q2_options.keys()), format_func=lambda x: f"{x}) {q2_options[x]}", key="q2")
+    
+    if st.button("Submit Question 2"):
+        if q2_choice == "C":
+            st.success("Correct! Our main goal is to see if the model performs differently across the two groups. Are predictions more accurate for one sex than the other? These performance differences can point to underlying biological, clinical, or systemic factors.")
+        else:
+            st.error("Try again.")
