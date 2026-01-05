@@ -7,7 +7,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
 
 # --- 1. SETUP & CACHING ---
-st.set_page_config(page_title="Module 2: Sex-Specific Modeling", layout="wide")
+st.set_page_config(
+    page_title="Module 2: Sex-Specific Modeling",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 @st.cache_data
 def build_eicu_data():
@@ -147,7 +151,10 @@ if page == "1. Data Processing":
             
         st.success("Preprocessing Complete!")
         st.write(f"Processed Data Shape: {df_processed.shape}")
-        st.dataframe(df_processed.head())
+        
+        st.subheader("Processed Data Preview")
+        st.dataframe(df_processed.head(), use_container_width=True)
+        st.caption("A preview of the first 5 rows of the clean dataset.")
         
         csv = df_processed.to_csv(index=False).encode('utf-8')
         st.download_button(
@@ -155,24 +162,71 @@ if page == "1. Data Processing":
             csv, 
             "eicu_processed.csv", 
             "text/csv", 
-            key='download-csv-processed'
+            key='download-csv-processed',
+            help="Download the cleaned dataset to your computer as a CSV file."
         )
 
 # === 2. EXPLORATORY ANALYSIS ===
 elif page == "2. Exploratory Analysis":
     st.title("Exploratory Analysis")
-    st.markdown("""
-    ### Visualize the sex-specific patterns
-    Before jumping into modeling, it is important to ask: "Do males and females behave differently in this data?" In many clinical datasets, combining all patients into a single analysis can blur important differences. Let’s split the lens and take a closer look.
-    """)
 
-    with st.spinner("Preparing Data..."):
+    st.subheader("Brief Exploratory Analysis")
+    st.markdown("""
+    Now, please take a moment to check the Data Explorer. Notice that, this isn’t about deep analysis, just getting a feel for the data at a glance. Keep it simple, you’re just getting familiar with the variable before modeling.
+    """)
+    
+    with st.spinner("Loading Data Explorer..."):
         df_raw = build_eicu_data()
+        df_explorer = df_raw.drop(columns=['patient_id', 'hospital_id', 'admission_id', 'admission_year', 'weight_discharge', 'discharge_location'])
+        
         df_processed = get_processed_data(df_raw)
         if 'gender' not in df_processed.columns:
             df_processed['gender'] = df_raw['gender']
 
+    # --- DATA EXPLORER FILTERS ---
+    with st.expander("Filter Data Explorer Options", expanded=False):
+        c1, c2 = st.columns(2)
+        with c1:
+            all_regions = df_explorer['hospital_region'].dropna().unique().tolist()
+            selected_regions = st.multiselect("Hospital Region:", all_regions, default=all_regions, help="Filter by geographical region.")
+        with c2:
+            all_genders = df_explorer['gender'].dropna().unique().tolist()
+            selected_genders = st.multiselect("Gender:", all_genders, default=all_genders, help="Filter by gender.")
+            
+        st.write("---")
+        c3, c4, c5 = st.columns(3)
+        with c3:
+            min_age, max_age = int(df_explorer['age'].min()), int(df_explorer['age'].max())
+            age_range = st.slider("Patient Age:", min_age, max_age, (min_age, max_age), help="Filter by age range.")
+        with c4:
+            min_h = float(df_explorer['height'].dropna().min())
+            max_h = float(df_explorer['height'].dropna().max())
+            height_range = st.slider("Height (cm):", min_h, max_h, (min_h, max_h), help="Filter by height.")
+        with c5:
+            min_w = float(df_explorer['weight_admission'].dropna().min())
+            max_w = float(df_explorer['weight_admission'].dropna().max())
+            weight_range = st.slider("Weight (kg):", min_w, max_w, (min_w, max_w), help="Filter by weight.")
+
+    # Apply Filters
+    mask = (
+        (df_explorer['hospital_region'].isin(selected_regions)) &
+        (df_explorer['gender'].isin(selected_genders)) &
+        (df_explorer['age'].between(age_range[0], age_range[1])) &
+        (df_explorer['height'].between(height_range[0], height_range[1])) &
+        (df_explorer['weight_admission'].between(weight_range[0], weight_range[1]))
+    )
+    df_filtered = df_explorer[mask]
+
+    st.dataframe(df_filtered, height=300, use_container_width=True)
+    st.caption(f"Showing {len(df_filtered)} of {len(df_explorer)} patients.")
+    st.divider()
+
     # --- VISUALIZATION ---
+    st.subheader("Visualize the sex-specific patterns")
+    st.markdown("""
+    Before jumping into modeling, it is important to ask: "Do males and females behave differently in this data?" In many clinical datasets, combining all patients into a single analysis can blur important differences. Let’s split the lens and take a closer look.
+    """)
+
     st.subheader("Interactive Statistics")
     available_vars = ['age', 'height','weight_admission', 'lab_bun','lab_creatinine','lab_sodium',
                       'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride',
@@ -210,6 +264,10 @@ elif page == "2. Exploratory Analysis":
         ax.legend([f'{val} ({context})' for val, context in df0.columns])
         ax.set_title("Mean Values by Mortality Status (Stacked by Sex)")
         st.pyplot(fig)
+        
+        # Accessibility: Data Table
+        with st.expander("View Chart Data as Table"):
+            st.dataframe(df0, use_container_width=True)
 
     # --- QUESTION 1 ---
     st.divider()
@@ -258,9 +316,9 @@ elif page == "3. Univariate Analysis":
                 'lab_mchc','lab_bicarbonate','lab_mch','lab_rdw','lab_albumin']
     
     st.subheader("Calculate Odds Ratios")
-    selected_variables = st.multiselect("Select Variables:", all_vars, default=all_vars[:10])
+    selected_variables = st.multiselect("Select Variables:", all_vars, default=all_vars[:10], help="Select predictors to analyze.")
 
-    if st.button("Run Regression Models"):
+    if st.button("Run Regression Models", help="Fit logistic regression models for the selected variables."):
         vals_male, vals_female, vals_full = [], [], []
         
         progress_bar = st.progress(0)
@@ -298,6 +356,16 @@ elif page == "3. Univariate Analysis":
         ax.legend()
         ax.axvline(x=1, color='gray', linestyle='--', linewidth=0.8)
         st.pyplot(fig)
+        
+        # Accessibility: Data Table
+        with st.expander("View OR Data as Table"):
+            df_or = pd.DataFrame({
+                "Variable": selected_variables,
+                "OR (Female)": vals_female,
+                "OR (Male)": vals_male,
+                "OR (All)": vals_full
+            })
+            st.dataframe(df_or, use_container_width=True)
 
 # === 4. MULTIVARIATE ANALYSIS ===
 elif page == "4. Multivariate Analysis":
@@ -307,7 +375,6 @@ elif page == "4. Multivariate Analysis":
     We use the AUROC (Area Under the Receiver Operating Characteristic Curve) to measure discriminative ability.
     """)
 
-    # Data Loading
     with st.spinner("Preparing Data..."):
         df_raw = build_eicu_data()
         df_processed = get_processed_data(df_raw)
@@ -316,7 +383,7 @@ elif page == "4. Multivariate Analysis":
 
     # Filter Logic
     st.markdown("#### 1. Population Filter (Optional)")
-    enable_filter = st.checkbox("Filter Patient Population?")
+    enable_filter = st.checkbox("Filter Patient Population?", help="Enable to restrict training to specific demographics.")
     df_model_input = df_processed.copy()
     
     if enable_filter:
@@ -331,9 +398,9 @@ elif page == "4. Multivariate Analysis":
     all_vars = ['age', 'height','weight_admission', 'lab_bun','lab_creatinine','lab_sodium',
                 'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride','lab_platelets','lab_rbc','lab_calcium','lab_mcv',
                 'lab_mchc','lab_bicarbonate','lab_mch','lab_rdw','lab_albumin']
-    selected_predictors = st.multiselect("Choose predictors:", all_vars, default=all_vars)
+    selected_predictors = st.multiselect("Choose predictors:", all_vars, default=all_vars, help="Select variables to include in the multivariate logistic regression.")
 
-    if st.button("Train & Evaluate Models"):
+    if st.button("Train & Evaluate Models", help="Train 3 separate models (Female, Male, All) and compare their AUROC scores."):
         if not selected_predictors:
             st.error("Select at least one predictor.")
             st.stop()
@@ -341,7 +408,6 @@ elif page == "4. Multivariate Analysis":
         df_male = df_model_input[df_model_input['gender'] == "Male"]
         df_female = df_model_input[df_model_input['gender'] == "Female"]
         
-        # Train/Test Split
         train_dat_female, test_dat_female = train_test_split(df_female, test_size=0.2, random_state=2025)
         train_dat_male, test_dat_male = train_test_split(df_male, test_size=0.2, random_state=2025)
         train_dat, test_dat = train_test_split(df_model_input, test_size=0.2, random_state=2025)
@@ -382,6 +448,14 @@ elif page == "4. Multivariate Analysis":
             plt.text(r + 2*width - 0.05, vals_full[0] + 0.01, f"{vals_full[0]:.3f}")
             
             st.pyplot(fig)
+            
+            # Accessibility: Data Table
+            with st.expander("View Results as Table"):
+                res_df = pd.DataFrame({
+                    "Group": ["Female", "Male", "All Cohort"],
+                    "AUROC": [vals_female[0], vals_male[0], vals_full[0]]
+                })
+                st.dataframe(res_df, use_container_width=True)
 
         except Exception as e:
             st.error(f"Error training model: {e}")
