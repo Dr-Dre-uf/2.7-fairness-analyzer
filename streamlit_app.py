@@ -109,13 +109,26 @@ def get_processed_data(df_raw):
 
 # --- 2. SIDEBAR NAVIGATION ---
 st.sidebar.title("Module Navigation")
-page = st.sidebar.radio("Go to:", 
-    ["1. Data Processing", 
-     "2. Exploratory Analysis",
-     "3. Univariate Analysis",
-     "4. Multivariate Analysis"])
 
-st.sidebar.info("Use the menu above to follow the module structure.")
+# Define pages
+pages = ["1. Data Processing", "2. Exploratory Analysis", "3. Univariate Analysis", "4. Multivariate Analysis"]
+
+# Main Menu with Tooltip
+page = st.sidebar.radio(
+    "Go to:", 
+    pages,
+    help="Navigate through the 4 steps of the analysis pipeline. Hover over the info box below for more details on your current selection."
+)
+
+# Dynamic Info Box (Acts as a tooltip description for the active page)
+if page == "1. Data Processing":
+    st.sidebar.info("Clean the raw dataset, remove identifiers, and handle missing values.")
+elif page == "2. Exploratory Analysis":
+    st.sidebar.info("Visualize patient demographics and answer key conceptual questions.")
+elif page == "3. Univariate Analysis":
+    st.sidebar.info("Calculate Odds Ratios for individual variables to see sex-specific risk factors.")
+elif page == "4. Multivariate Analysis":
+    st.sidebar.info("Train and evaluate complex models. Compare AUROC performance between sexes.")
 
 # --- 3. PAGE LOGIC ---
 
@@ -265,7 +278,6 @@ elif page == "2. Exploratory Analysis":
         ax.set_title("Mean Values by Mortality Status (Stacked by Sex)")
         st.pyplot(fig)
         
-        # Accessibility: Data Table
         with st.expander("View Chart Data as Table"):
             st.dataframe(df0, use_container_width=True)
 
@@ -357,7 +369,6 @@ elif page == "3. Univariate Analysis":
         ax.axvline(x=1, color='gray', linestyle='--', linewidth=0.8)
         st.pyplot(fig)
         
-        # Accessibility: Data Table
         with st.expander("View OR Data as Table"):
             df_or = pd.DataFrame({
                 "Variable": selected_variables,
@@ -449,7 +460,6 @@ elif page == "4. Multivariate Analysis":
             
             st.pyplot(fig)
             
-            # Accessibility: Data Table
             with st.expander("View Results as Table"):
                 res_df = pd.DataFrame({
                     "Group": ["Female", "Male", "All Cohort"],
