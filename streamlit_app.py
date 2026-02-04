@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score
+import psutil
+import os
 
 # --- 1. SETUP & CACHING ---
 st.set_page_config(
@@ -129,6 +131,19 @@ elif page == "3. Univariate Analysis":
     st.sidebar.info("Calculate Odds Ratios for individual variables to see sex-specific risk factors.")
 elif page == "4. Multivariate Analysis":
     st.sidebar.info("Train and evaluate complex models. Compare AUROC performance between sexes.")
+
+# --- SYSTEM MONITOR (Bottom of Sidebar) ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("System Monitor")
+pid = os.getpid()
+py = psutil.Process(pid)
+memory_use = py.memory_info().rss / 1024 / 1024  # Memory in MB
+cpu_use = psutil.cpu_percent(interval=None)     # CPU Percent (non-blocking)
+
+col1, col2 = st.sidebar.columns(2)
+col1.metric("CPU", f"{cpu_use}%")
+col2.metric("RAM", f"{memory_use:.0f} MB")
+st.sidebar.caption("Real-time resource usage of this app instance.")
 
 # --- 3. PAGE LOGIC ---
 
@@ -278,6 +293,7 @@ elif page == "2. Exploratory Analysis":
         ax.set_title("Mean Values by Mortality Status (Stacked by Sex)")
         st.pyplot(fig)
         
+        # Accessibility: Data Table
         with st.expander("View Chart Data as Table"):
             st.dataframe(df0, use_container_width=True)
 
@@ -369,6 +385,7 @@ elif page == "3. Univariate Analysis":
         ax.axvline(x=1, color='gray', linestyle='--', linewidth=0.8)
         st.pyplot(fig)
         
+        # Accessibility: Data Table
         with st.expander("View OR Data as Table"):
             df_or = pd.DataFrame({
                 "Variable": selected_variables,
