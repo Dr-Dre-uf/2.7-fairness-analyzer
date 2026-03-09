@@ -42,8 +42,7 @@ def build_eicu_data():
 
     # Load labs
     labcols = ['patientunitstayid', 'labname', 'labresult']
-    labnames = ['BUN', 'creatinine', 'sodium', 'Hct', 'wbc', 'glucose', 'potassium', 'Hgb', 'chloride', 'platelets',
-                'RBC', 'calcium', 'MCV', 'MCHC', 'bicarbonate', 'MCH', 'RDW', 'albumin']
+    labnames = ['BUN', 'Hct', 'Hgb', 'MCH', 'MCHC', 'MCV', 'RBC', 'RDW', 'albumin', 'bicarbonate', 'calcium', 'chloride', 'creatinine', 'glucose', 'platelets', 'potassium', 'sodium', 'wbc']
     labs = pd.read_csv('https://www.dropbox.com/scl/fi/qaxtx330hicc5u61siehn/lab.csv?rlkey=xs9oxpl5istkbuh5s80oyxwwi&st=ydfrjxkh&dl=1',
                         usecols=labcols)
     labs['labname'] = labs['labname'].replace({
@@ -94,9 +93,7 @@ def get_processed_data(df_raw):
     # Drop IDs for processing
     x = df_raw.drop(columns=['patient_id', 'hospital_id', 'admission_id', 'admission_year', 'weight_discharge', 'discharge_location'])
     
-    numerical_features = ['age', 'height','weight_admission', 'hospital_teaching', 'lab_bun','lab_creatinine','lab_sodium',
-                      'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride','lab_platelets','lab_rbc','lab_calcium','lab_mcv',
-                      'lab_mchc','lab_bicarbonate','lab_mch','lab_rdw','lab_albumin']
+    numerical_features = ['age', 'height','weight_admission', 'hospital_teaching', 'lab_bun', 'lab_hct', 'lab_hgb', 'lab_mch', 'lab_mchc', 'lab_mcv', 'lab_rbc', 'lab_rdw', 'lab_albumin', 'lab_bicarbonate', 'lab_calcium', 'lab_chloride', 'lab_creatinine', 'lab_glucose', 'lab_platelets', 'lab_potassium', 'lab_sodium', 'lab_wbc']
 
     categorical_features = ['ethnicity', 'admission_source', 'hospital_region', 'hospital_beds']
     
@@ -256,10 +253,7 @@ elif page == "2. Exploratory Analysis":
     """)
 
     st.subheader("Interactive Statistics")
-    available_vars = ['age', 'height','weight_admission', 'lab_bun','lab_creatinine','lab_sodium',
-                      'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride',
-                      'lab_platelets','lab_rbc','lab_calcium','lab_mcv','lab_mchc',
-                      'lab_bicarbonate','lab_mch','lab_rdw','lab_albumin']
+    available_vars = ['age', 'height','weight_admission', 'lab_bun', 'lab_hct', 'lab_hgb', 'lab_mch', 'lab_mchc', 'lab_mcv', 'lab_rbc', 'lab_rdw', 'lab_albumin', 'lab_bicarbonate', 'lab_calcium', 'lab_chloride', 'lab_creatinine', 'lab_glucose', 'lab_platelets', 'lab_potassium', 'lab_sodium', 'lab_wbc']
     
     selected_variables = st.multiselect(
         "Select Variables to Compare:", 
@@ -339,9 +333,7 @@ elif page == "3. Univariate Analysis":
         train_dat_male, test_dat_male = train_test_split(df_male, test_size=0.2, random_state=2025)
         train_dat_full, test_dat_full = train_test_split(df_processed, test_size=0.2, random_state=2025)
 
-    all_vars = ['age', 'height','weight_admission', 'lab_bun','lab_creatinine','lab_sodium',
-                'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride','lab_platelets','lab_rbc','lab_calcium','lab_mcv',
-                'lab_mchc','lab_bicarbonate','lab_mch','lab_rdw','lab_albumin']
+    all_vars = ['age', 'height','weight_admission', 'lab_bun', 'lab_hct', 'lab_hgb', 'lab_mch', 'lab_mchc', 'lab_mcv', 'lab_rbc', 'lab_rdw', 'lab_albumin', 'lab_bicarbonate', 'lab_calcium', 'lab_chloride', 'lab_creatinine', 'lab_glucose', 'lab_platelets', 'lab_potassium', 'lab_sodium', 'lab_wbc']
     
     st.subheader("Calculate Odds Ratios")
     selected_variables = st.multiselect("Select Variables:", all_vars, default=all_vars[:10], help="Select predictors to analyze.")
@@ -423,9 +415,7 @@ elif page == "4. Multivariate Analysis":
 
     # Variable Selection
     st.markdown("#### 2. Model Features")
-    all_vars = ['age', 'height','weight_admission', 'lab_bun','lab_creatinine','lab_sodium',
-                'lab_hct','lab_wbc','lab_glucose','lab_potassium','lab_hgb','lab_chloride','lab_platelets','lab_rbc','lab_calcium','lab_mcv',
-                'lab_mchc','lab_bicarbonate','lab_mch','lab_rdw','lab_albumin']
+    all_vars = ['age', 'height','weight_admission', 'lab_bun', 'lab_hct', 'lab_hgb', 'lab_mch', 'lab_mchc', 'lab_mcv', 'lab_rbc', 'lab_rdw', 'lab_albumin', 'lab_bicarbonate', 'lab_calcium', 'lab_chloride', 'lab_creatinine', 'lab_glucose', 'lab_platelets', 'lab_potassium', 'lab_sodium', 'lab_wbc']
     selected_predictors = st.multiselect("Choose predictors:", all_vars, default=all_vars, help="Select variables to include in the multivariate logistic regression.")
 
     if st.button("Train & Evaluate Models", help="Train 3 separate models (Female, Male, All) and compare their AUROC scores."):
