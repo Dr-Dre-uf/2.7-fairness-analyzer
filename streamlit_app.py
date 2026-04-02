@@ -18,14 +18,12 @@ st.set_page_config(
 @st.cache_data
 def build_eicu_data():
     """Loads and merges the raw eICU data."""
-    # Load patient information
     patient_cols = ['patientunitstayid', 'hospitalid', 'gender', 'age', 'ethnicity', 'admissionheight', 'admissionweight', 'dischargeweight',
                 'hospitaladmitsource', 'hospitaldischargelocation', 'hospitaldischargestatus', 'unittype', 'uniquepid', 'unitvisitnumber',
                 'patienthealthsystemstayid', 'hospitaldischargeyear']
     df = pd.read_csv('https://www.dropbox.com/scl/fi/qld4pvo6vlptm41av3y2e/patient.csv?rlkey=gry21fvb3u3dytz7i5jcujcu9&dl=1',
                       usecols=patient_cols)
     
-    # Clean Age for numerical filtering
     df['age'] = df['age'].replace({'> 89': 90})
     df['age'] = pd.to_numeric(df['age'], errors='coerce') 
     
@@ -33,14 +31,12 @@ def build_eicu_data():
     df = df.groupby('patienthealthsystemstayid').first().reset_index()
     df = df.drop(columns=['unitvisitnumber'])
 
-    # Load hospital information
     hospital = pd.read_csv('https://www.dropbox.com/scl/fi/5sdjsbrjxk0hlbmpb4csi/hospital.csv?rlkey=rmlrhg3m9sm3hj2s6rykrg5w2&st=329j4gwk&dl=1')
     with pd.option_context('future.no_silent_downcasting', True):
         hospital = hospital.replace({'teachingstatus': {'f': 0, 't':1}})
 
     df = df.merge(hospital, on='hospitalid', how='left')
 
-    # Load labs using the updated alphabetical order
     labcols = ['patientunitstayid', 'labname', 'labresult']
     labnames = ['BUN', 'Hct', 'Hgb', 'MCH', 'MCHC', 'MCV', 'RBC', 'RDW', 'albumin', 'bicarbonate', 'calcium', 'chloride', 'creatinine', 'glucose', 'platelets', 'potassium', 'sodium', 'wbc']
     
@@ -56,13 +52,11 @@ def build_eicu_data():
     labs.columns = list(labs.columns.droplevel(0))
     labs = labs.reset_index()
     
-    # Convert exactly to the lab_ prefix matching the order
     labnames = ['lab_' + c.lower() for c in labnames]
     labs.columns = ['patientunitstayid'] + labnames
 
     df = df.merge(labs, on='patientunitstayid', how='left')
 
-    # Renaming
     df = df.rename(columns={
         'uniquepid': 'patient_id',
         'patienthealthsystemstayid': 'admission_id',
@@ -93,7 +87,6 @@ def build_eicu_data():
 @st.cache_data
 def get_processed_data(df_raw):
     """Runs the preprocessing steps (One-Hot Encoding & Imputation)."""
-    # Drop IDs for processing
     x = df_raw.drop(columns=['patient_id', 'hospital_id', 'admission_id', 'admission_year', 'weight_discharge', 'discharge_location'])
     
     numerical_features = ['age', 'height', 'weight_admission', 'hospital_teaching', 'lab_bun', 'lab_hct', 'lab_hgb', 'lab_mch', 'lab_mchc', 'lab_mcv', 'lab_rbc', 'lab_rdw', 'lab_albumin', 'lab_bicarbonate', 'lab_calcium', 'lab_chloride', 'lab_creatinine', 'lab_glucose', 'lab_platelets', 'lab_potassium', 'lab_sodium', 'lab_wbc']
@@ -103,7 +96,6 @@ def get_processed_data(df_raw):
     x[numerical_features] = x[numerical_features].apply(pd.to_numeric, errors='coerce', axis=1)
     x[numerical_features] = x[numerical_features].fillna(x[numerical_features].mean())
     
-    # Standard preprocessing
     x = pd.get_dummies(x, columns=categorical_features, dtype='int')
     x['in_hospital_mortality'] = x['in_hospital_mortality'].fillna(0)
     
@@ -112,33 +104,35 @@ def get_processed_data(df_raw):
 # --- 2. SIDEBAR NAVIGATION ---
 st.sidebar.title("Module Navigation")
 
-# Define pages
-pages = ["1. Data Processing", "2. Exploratory Analysis", "3. Univariate Analysis", "4. Multivariate Analysis"]
+pages = [
+    "1. Dataset Description & Exploratory Analysis", 
+    "2. Visualize Sex-Specific Patterns", 
+    "3. Sex-Specific Association Models", 
+    "4. Performance Evaluation by Sex"
+]
 
-# Main Menu with Tooltip
 page = st.sidebar.radio(
     "Go to:", 
     pages,
-    help="Navigate through the 4 steps of the analysis pipeline. Hover over the info box below for more details on your current selection."
+    help="Navigate through the 4 steps of the analysis pipeline."
 )
 
-# Dynamic Info Box (Acts as a tooltip description for the active page)
-if page == "1. Data Processing":
-    st.sidebar.info("Clean the raw dataset, remove identifiers, and handle missing values.")
-elif page == "2. Exploratory Analysis":
+if page == pages[0]:
+    st.sidebar.info("Clean the raw dataset and get a feel for the data at a glance.")
+elif page == pages[1]:
     st.sidebar.info("Visualize patient demographics and answer key conceptual questions.")
-elif page == "3. Univariate Analysis":
-    st.sidebar.info("Calculate Odds Ratios for individual variables to see sex-specific risk factors.")
-elif page == "4. Multivariate Analysis":
+elif page == pages[2]:
+    st.sidebar.info("Split the dataset and calculate Odds Ratios for individual variables.")
+elif page == pages[3]:
     st.sidebar.info("Train and evaluate complex models. Compare AUROC performance between sexes.")
 
-# --- SYSTEM MONITOR (Bottom of Sidebar) ---
+# --- SYSTEM MONITOR ---
 st.sidebar.markdown("---")
 st.sidebar.subheader("System Monitor")
 pid = os.getpid()
 py = psutil.Process(pid)
-memory_use = py.memory_info().rss / 1024 / 1024  # Memory in MB
-cpu_use = psutil.cpu_percent(interval=None)     # CPU Percent (non-blocking)
+memory_use = py.memory_info().rss / 1024 / 1024
+cpu_use = psutil.cpu_percent(interval=None)
 
 col1, col2 = st.sidebar.columns(2)
 col1.metric("CPU", f"{cpu_use}%")
@@ -147,11 +141,13 @@ st.sidebar.caption("Real-time resource usage of this app instance.")
 
 # --- 3. PAGE LOGIC ---
 
-# === 1. DATA PROCESSING ===
-if page == "1. Data Processing":
-    st.title("Data Processing")
+# === 1. DATASET DESCRIPTION & EXPLORATORY ANALYSIS ===
+if page == pages[0]:
+    st.title("Dataset Description and Problem Definition")
     
     st.markdown("""
+    In this tutorial, we will use a real-world dataset of 1,841 patients who underwent 2,174 total inpatient hospitalizations across 186 different hospitals spread throughout the United States. This is a subset of the eICU Collaborative Research Database.
+
     ### Removing Irrelevant Columns
     One of the first logical steps is to remove the columns that contain no informational value. Some columns are unique random numeric identifiers (e.g., patient_id) with no discernible meaning. 
     
@@ -163,7 +159,6 @@ if page == "1. Data Processing":
     2. Impute missing values in each numerical column with the mean.
     """)
 
-    # Initialize state
     if 'proc_run' not in st.session_state:
         st.session_state.proc_run = False
         
@@ -182,42 +177,38 @@ if page == "1. Data Processing":
         
         st.subheader("Processed Data Preview")
         st.dataframe(df_processed.head(), use_container_width=True)
-        st.caption("A preview of the first 5 rows of the clean dataset.")
 
-    # Moved Brief Exploratory Analysis here
     st.divider()
     st.subheader("Brief Exploratory Analysis")
     st.markdown("""
-    Now, please take a moment to check the Data Explorer. Notice that, this isn’t about deep analysis, just getting a feel for the data at a glance. Keep it simple, you’re just getting familiar with the variable before modeling.
+    Now, please take a moment to check the Data Explorer. Notice that this isn’t about deep analysis, just getting a feel for the data at a glance. Keep it simple, you’re just getting familiar with the variables before modeling.
     """)
     
     df_explorer = df_raw.drop(columns=['patient_id', 'hospital_id', 'admission_id', 'admission_year', 'weight_discharge', 'discharge_location'])
     
-    # --- DATA EXPLORER FILTERS ---
     with st.expander("Filter Data Explorer Options", expanded=False):
         c1, c2 = st.columns(2)
         with c1:
             all_regions = df_explorer['hospital_region'].dropna().unique().tolist()
-            selected_regions = st.multiselect("Hospital Region:", all_regions, default=all_regions, help="Filter by geographical region.")
+            selected_regions = st.multiselect("Hospital Region:", all_regions, default=all_regions, key="expl_reg")
         with c2:
             all_genders = df_explorer['gender'].dropna().unique().tolist()
-            selected_genders = st.multiselect("Gender:", all_genders, default=all_genders, help="Filter by gender.")
+            selected_genders = st.multiselect("Gender:", all_genders, default=all_genders, key="expl_gen")
             
         st.write("---")
         c3, c4, c5 = st.columns(3)
         with c3:
             min_age, max_age = int(df_explorer['age'].min()), int(df_explorer['age'].max())
-            age_range = st.slider("Patient Age:", min_age, max_age, (min_age, max_age), help="Filter by age range.")
+            age_range = st.slider("Patient Age:", min_age, max_age, (min_age, max_age), key="expl_age")
         with c4:
             min_h = float(df_explorer['height'].dropna().min())
             max_h = float(df_explorer['height'].dropna().max())
-            height_range = st.slider("Height (cm):", min_h, max_h, (min_h, max_h), help="Filter by height.")
+            height_range = st.slider("Height (cm):", min_h, max_h, (min_h, max_h), key="expl_hgt")
         with c5:
             min_w = float(df_explorer['weight_admission'].dropna().min())
             max_w = float(df_explorer['weight_admission'].dropna().max())
-            weight_range = st.slider("Weight (kg):", min_w, max_w, (min_w, max_w), help="Filter by weight.")
+            weight_range = st.slider("Weight (kg):", min_w, max_w, (min_w, max_w), key="expl_wgt")
 
-    # Apply Filters
     mask = (
         (df_explorer['hospital_region'].isin(selected_regions)) &
         (df_explorer['gender'].isin(selected_genders)) &
@@ -230,21 +221,59 @@ if page == "1. Data Processing":
     st.dataframe(df_filtered, height=300, use_container_width=True)
     st.caption(f"Showing {len(df_filtered)} of {len(df_explorer)} patients.")
 
-# === 2. EXPLORATORY ANALYSIS ===
-elif page == "2. Exploratory Analysis":
-    st.title("Exploratory Analysis")
+# === 2. VISUALIZE SEX-SPECIFIC PATTERNS ===
+elif page == pages[1]:
+    st.title("Visualize the sex-specific patterns")
 
     with st.spinner("Loading Data..."):
         df_raw = build_eicu_data()
+        df_explorer = df_raw.drop(columns=['patient_id', 'hospital_id', 'admission_id', 'admission_year', 'weight_discharge', 'discharge_location'])
         df_processed = get_processed_data(df_raw)
         if 'gender' not in df_processed.columns:
             df_processed['gender'] = df_raw['gender']
 
-    # --- VISUALIZATION ---
-    st.subheader("Visualize the sex-specific patterns")
     st.markdown("""
     Before jumping into modeling, it is important to ask: "Do males and females behave differently in this data?" In many clinical datasets, combining all patients into a single analysis can blur important differences. Let’s split the lens and take a closer look.
+    
+    Take a look at how the average values of key variables differ by sex and survival status. For each variable of interest, compare mean values between survivors and non-survivors within each group.
     """)
+
+    # Same filtering interaction applied here
+    with st.expander("Filter Patient Population", expanded=False):
+        c1, c2 = st.columns(2)
+        with c1:
+            all_regions = df_explorer['hospital_region'].dropna().unique().tolist()
+            selected_regions = st.multiselect("Hospital Region:", all_regions, default=all_regions, key="vis_reg")
+        with c2:
+            all_genders = df_explorer['gender'].dropna().unique().tolist()
+            selected_genders = st.multiselect("Gender:", all_genders, default=all_genders, key="vis_gen")
+            
+        st.write("---")
+        c3, c4, c5 = st.columns(3)
+        with c3:
+            min_age, max_age = int(df_explorer['age'].min()), int(df_explorer['age'].max())
+            age_range = st.slider("Patient Age:", min_age, max_age, (min_age, max_age), key="vis_age")
+        with c4:
+            min_h = float(df_explorer['height'].dropna().min())
+            max_h = float(df_explorer['height'].dropna().max())
+            height_range = st.slider("Height (cm):", min_h, max_h, (min_h, max_h), key="vis_hgt")
+        with c5:
+            min_w = float(df_explorer['weight_admission'].dropna().min())
+            max_w = float(df_explorer['weight_admission'].dropna().max())
+            weight_range = st.slider("Weight (kg):", min_w, max_w, (min_w, max_w), key="vis_wgt")
+
+    # Apply Filters to the Data Explorer representation to get valid indices
+    mask = (
+        (df_explorer['hospital_region'].isin(selected_regions)) &
+        (df_explorer['gender'].isin(selected_genders)) &
+        (df_explorer['age'].between(age_range[0], age_range[1])) &
+        (df_explorer['height'].between(height_range[0], height_range[1])) &
+        (df_explorer['weight_admission'].between(weight_range[0], weight_range[1]))
+    )
+    df_filtered_raw = df_explorer[mask]
+    
+    # Filter the fully processed data using the valid indices
+    df_filtered_processed = df_processed.loc[df_filtered_raw.index]
 
     st.subheader("Interactive Statistics")
     available_vars = ['age', 'height', 'weight_admission', 'lab_bun', 'lab_hct', 'lab_hgb', 'lab_mch', 'lab_mchc', 'lab_mcv', 'lab_rbc', 'lab_rdw', 'lab_albumin', 'lab_bicarbonate', 'lab_calcium', 'lab_chloride', 'lab_creatinine', 'lab_glucose', 'lab_platelets', 'lab_potassium', 'lab_sodium', 'lab_wbc']
@@ -257,13 +286,14 @@ elif page == "2. Exploratory Analysis":
     )
 
     if selected_variables:
-        df_male = df_processed[df_processed['gender'] == "Male"]
-        df_female = df_processed[df_processed['gender'] == "Female"]
+        df_male = df_filtered_processed[df_filtered_processed['gender'] == "Male"]
+        df_female = df_filtered_processed[df_filtered_processed['gender'] == "Female"]
 
-        female_survived = [df_female.loc[df_female['in_hospital_mortality'] == 0][str(i)].mean() for i in selected_variables]
-        female_dead = [df_female.loc[df_female['in_hospital_mortality'] == 1][str(i)].mean() for i in selected_variables]
-        male_survived = [df_male.loc[df_male['in_hospital_mortality'] == 0][str(i)].mean() for i in selected_variables]
-        male_dead = [df_male.loc[df_male['in_hospital_mortality'] == 1][str(i)].mean() for i in selected_variables]
+        # Fill calculation to avoid breaking if a filtered subset becomes entirely empty
+        female_survived = [df_female.loc[df_female['in_hospital_mortality'] == 0][str(i)].mean() if not df_female.empty else 0 for i in selected_variables]
+        female_dead = [df_female.loc[df_female['in_hospital_mortality'] == 1][str(i)].mean() if not df_female.empty else 0 for i in selected_variables]
+        male_survived = [df_male.loc[df_male['in_hospital_mortality'] == 0][str(i)].mean() if not df_male.empty else 0 for i in selected_variables]
+        male_dead = [df_male.loc[df_male['in_hospital_mortality'] == 1][str(i)].mean() if not df_male.empty else 0 for i in selected_variables]
 
         Year = ['Survival'] * len(female_survived) + ['In hospital mortality'] * len(female_dead)
         Female = female_survived + female_dead
@@ -281,11 +311,9 @@ elif page == "2. Exploratory Analysis":
         ax.set_title("Mean Values by Mortality Status (Stacked by Sex)")
         st.pyplot(fig)
         
-        # Accessibility: Data Table
         with st.expander("View Chart Data as Table"):
             st.dataframe(df0, use_container_width=True)
 
-    # --- QUESTION 1 ---
     st.divider()
     st.subheader("Question 1")
     st.markdown("Why is it important to analyze clinical data separately for males and females before modeling?")
@@ -305,13 +333,18 @@ elif page == "2. Exploratory Analysis":
         else:
             st.error("Try again.")
 
-# === 3. UNIVARIATE ANALYSIS ===
-elif page == "3. Univariate Analysis":
-    st.title("Sex-specific Association Models")
-    st.markdown("""
-    We will now perform a univariate analysis using odds ratios separately for females and males. 
+# === 3. SEX-SPECIFIC ASSOCIATION MODELS ===
+elif page == pages[2]:
+    st.title("Splitting the Dataset & Sex-specific Modeling")
     
-    By calculating odds ratios within each sex, we can uncover whether a variable (like elevated lactate) has differential predictive power for mortality in women versus men.
+    st.markdown("""
+    ### Splitting the dataset
+    Recall that ML models adjust their internal parameters by feeding in many examples of inputs and corresponding output. This is called the training process. 
+    
+    To evaluate how good our ML model is, we will test it on a set of examples that it has never seen before (known as the test set), and for each patient in the test set, compare the model's predicted outcome with the true patient outcome.
+    
+    ### Sex-specific Association Models
+    We will now perform a univariate analysis using odds ratios separately for females and males. By calculating odds ratios within each sex, we can uncover whether a variable (like elevated lactate) has differential predictive power for mortality in women versus men.
     """)
 
     with st.spinner("Preparing Data & Models..."):
@@ -339,15 +372,12 @@ elif page == "3. Univariate Analysis":
         for i, univ_analysis in enumerate(selected_variables):
             progress_bar.progress((i + 1) / len(selected_variables))
             
-            # Male
             reg_male = smf.logit(f'in_hospital_mortality ~ {univ_analysis}', data=train_dat_male).fit(disp=0)
-            vals_male.append(np.exp(reg_male.params).iloc[1]) # Get OR for the variable
+            vals_male.append(np.exp(reg_male.params).iloc[1])
             
-            # Female
             reg_female = smf.logit(f'in_hospital_mortality ~ {univ_analysis}', data=train_dat_female).fit(disp=0)
             vals_female.append(np.exp(reg_female.params).iloc[1])
             
-            # Full
             reg_full = smf.logit(f'in_hospital_mortality ~ {univ_analysis}', data=train_dat_full).fit(disp=0)
             vals_full.append(np.exp(reg_full.params).iloc[1])
 
@@ -371,7 +401,6 @@ elif page == "3. Univariate Analysis":
         ax.axvline(x=1, color='gray', linestyle='--', linewidth=0.8)
         st.pyplot(fig)
         
-        # Accessibility: Data Table
         with st.expander("View OR Data as Table"):
             df_or = pd.DataFrame({
                 "Variable": selected_variables,
@@ -381,8 +410,8 @@ elif page == "3. Univariate Analysis":
             })
             st.dataframe(df_or, use_container_width=True)
 
-# === 4. MULTIVARIATE ANALYSIS ===
-elif page == "4. Multivariate Analysis":
+# === 4. PERFORMANCE EVALUATION BY SEX ===
+elif page == pages[3]:
     st.title("Performance Evaluation by Sex")
     st.markdown("""
     Now we will evaluate how well our models perform not just overall, but within each sex. 
@@ -395,7 +424,6 @@ elif page == "4. Multivariate Analysis":
         if 'gender' not in df_processed.columns:
             df_processed['gender'] = df_raw['gender']
 
-    # Filter Logic
     st.markdown("#### 1. Population Filter (Optional)")
     enable_filter = st.checkbox("Filter Patient Population?", help="Enable to restrict training to specific demographics.")
     df_model_input = df_processed.copy()
@@ -407,7 +435,6 @@ elif page == "4. Multivariate Analysis":
         range_vals = st.slider(f"Range for {filter_col}:", min_val, max_val, (min_val, max_val))
         df_model_input = df_processed[(df_processed[filter_col] >= range_vals[0]) & (df_processed[filter_col] <= range_vals[1])]
 
-    # Variable Selection
     st.markdown("#### 2. Model Features")
     all_vars = ['age', 'height', 'weight_admission', 'lab_bun', 'lab_hct', 'lab_hgb', 'lab_mch', 'lab_mchc', 'lab_mcv', 'lab_rbc', 'lab_rdw', 'lab_albumin', 'lab_bicarbonate', 'lab_calcium', 'lab_chloride', 'lab_creatinine', 'lab_glucose', 'lab_platelets', 'lab_potassium', 'lab_sodium', 'lab_wbc']
     selected_predictors = st.multiselect("Choose predictors:", all_vars, default=all_vars, help="Select variables to include in the multivariate logistic regression.")
@@ -427,19 +454,15 @@ elif page == "4. Multivariate Analysis":
         vals_male, vals_female, vals_full = [], [], []
 
         try:
-            # Male
             reg_male = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat_male).fit(disp=0)
             vals_male.append(roc_auc_score(test_dat_male['in_hospital_mortality'], reg_male.predict(test_dat_male[selected_predictors])))
             
-            # Female
             reg_female = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat_female).fit(disp=0)
             vals_female.append(roc_auc_score(test_dat_female['in_hospital_mortality'], reg_female.predict(test_dat_female[selected_predictors])))
             
-            # Full
             reg = smf.logit(f"in_hospital_mortality ~ " + " + ".join(selected_predictors), data=train_dat).fit(disp=0)
             vals_full.append(roc_auc_score(test_dat['in_hospital_mortality'], reg.predict(test_dat[selected_predictors])))
             
-            # Plot
             fig, ax = plt.subplots(figsize=(8, 5))
             r = np.arange(1)
             width = 0.25
@@ -454,7 +477,6 @@ elif page == "4. Multivariate Analysis":
             plt.ylim(0.5, 1.0)
             plt.legend(loc='lower right')
             
-            # Add labels
             plt.text(r - 0.05, vals_female[0] + 0.01, f"{vals_female[0]:.3f}")
             plt.text(r + width - 0.05, vals_male[0] + 0.01, f"{vals_male[0]:.3f}")
             plt.text(r + 2*width - 0.05, vals_full[0] + 0.01, f"{vals_full[0]:.3f}")
@@ -471,7 +493,6 @@ elif page == "4. Multivariate Analysis":
         except Exception as e:
             st.error(f"Error training model: {e}")
 
-    # --- QUESTION 2 ---
     st.divider()
     st.subheader("Question 2")
     st.markdown("When comparing the outcomes of these sex-specific models, what are we most interested in identifying?")
