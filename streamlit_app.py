@@ -219,7 +219,7 @@ if page == pages[0]:
     df_filtered = df_explorer[mask]
 
     st.dataframe(df_filtered, height=300, use_container_width=True)
-    st.caption(f"Showing {len(df_filtered)} of {len(df_explorer)} patients.")
+    st.caption(f"Interactive data table showing {len(df_filtered)} of {len(df_explorer)} total patients based on selected filters.")
 
 # === 2. VISUALIZE SEX-SPECIFIC PATTERNS ===
 elif page == pages[1]:
@@ -238,7 +238,6 @@ elif page == pages[1]:
     Take a look at how the average values of key variables differ by sex and survival status. For each variable of interest, compare mean values between survivors and non-survivors within each group.
     """)
 
-    # Same filtering interaction applied here
     with st.expander("Filter Patient Population", expanded=False):
         c1, c2 = st.columns(2)
         with c1:
@@ -289,7 +288,6 @@ elif page == pages[1]:
         df_male = df_filtered_processed[df_filtered_processed['gender'] == "Male"]
         df_female = df_filtered_processed[df_filtered_processed['gender'] == "Female"]
 
-        # Fill calculation to avoid breaking if a filtered subset becomes entirely empty
         female_survived = [df_female.loc[df_female['in_hospital_mortality'] == 0][str(i)].mean() if not df_female.empty else 0 for i in selected_variables]
         female_dead = [df_female.loc[df_female['in_hospital_mortality'] == 1][str(i)].mean() if not df_female.empty else 0 for i in selected_variables]
         male_survived = [df_male.loc[df_male['in_hospital_mortality'] == 0][str(i)].mean() if not df_male.empty else 0 for i in selected_variables]
@@ -311,7 +309,10 @@ elif page == pages[1]:
         ax.set_title("Mean Values by Mortality Status (Stacked by Sex)")
         st.pyplot(fig)
         
-        with st.expander("View Chart Data as Table"):
+        # Accessibility caption for screen readers
+        st.caption("Bar chart showing the mean values of selected clinical variables, separated by sex (Male/Female) and in-hospital mortality status (Survival/In-hospital mortality). An accessible data table representation of this chart is available below.")
+        
+        with st.expander("View Accessible Chart Data as Table"):
             st.dataframe(df0, use_container_width=True)
 
     st.divider()
@@ -401,7 +402,10 @@ elif page == pages[2]:
         ax.axvline(x=1, color='gray', linestyle='--', linewidth=0.8)
         st.pyplot(fig)
         
-        with st.expander("View OR Data as Table"):
+        # Accessibility caption for screen readers
+        st.caption("Horizontal bar chart displaying the odds ratios of selected clinical variables for Females, Males, and the All Patient cohort. The dashed vertical line represents an Odds Ratio of 1.0 (no predictive effect). An accessible data table representation is available below.")
+        
+        with st.expander("View Accessible Odds Ratio Data as Table"):
             df_or = pd.DataFrame({
                 "Variable": selected_variables,
                 "OR (Female)": vals_female,
@@ -424,7 +428,7 @@ elif page == pages[3]:
         if 'gender' not in df_processed.columns:
             df_processed['gender'] = df_raw['gender']
 
-    st.markdown("#### 1. Population Filter (Optional)")
+    st.markdown("### 1. Population Filter (Optional)")
     enable_filter = st.checkbox("Filter Patient Population?", help="Enable to restrict training to specific demographics.")
     df_model_input = df_processed.copy()
     
@@ -435,7 +439,7 @@ elif page == pages[3]:
         range_vals = st.slider(f"Range for {filter_col}:", min_val, max_val, (min_val, max_val))
         df_model_input = df_processed[(df_processed[filter_col] >= range_vals[0]) & (df_processed[filter_col] <= range_vals[1])]
 
-    st.markdown("#### 2. Model Features")
+    st.markdown("### 2. Model Features")
     all_vars = ['age', 'height', 'weight_admission', 'lab_bun', 'lab_hct', 'lab_hgb', 'lab_mch', 'lab_mchc', 'lab_mcv', 'lab_rbc', 'lab_rdw', 'lab_albumin', 'lab_bicarbonate', 'lab_calcium', 'lab_chloride', 'lab_creatinine', 'lab_glucose', 'lab_platelets', 'lab_potassium', 'lab_sodium', 'lab_wbc']
     selected_predictors = st.multiselect("Choose predictors:", all_vars, default=all_vars, help="Select variables to include in the multivariate logistic regression.")
 
@@ -482,8 +486,11 @@ elif page == pages[3]:
             plt.text(r + 2*width - 0.05, vals_full[0] + 0.01, f"{vals_full[0]:.3f}")
             
             st.pyplot(fig)
+
+            # Accessibility caption for screen readers
+            st.caption("Bar chart comparing the AUROC (Area Under the Receiver Operating Characteristic Curve) performance of the multivariate model evaluated on Female, Male, and All Cohort groups. Higher values indicate better model discrimination. An accessible data table representation is available below.")
             
-            with st.expander("View Results as Table"):
+            with st.expander("View Accessible Results as Table"):
                 res_df = pd.DataFrame({
                     "Group": ["Female", "Male", "All Cohort"],
                     "AUROC": [vals_female[0], vals_male[0], vals_full[0]]
