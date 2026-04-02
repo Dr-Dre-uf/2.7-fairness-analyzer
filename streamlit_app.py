@@ -300,7 +300,7 @@ elif page == "2. Exploratory Analysis":
     
     if st.button("Submit Question 1"):
         if q1_choice == "C":
-            st.success("Correct! Clinical data often contains meaningful differences between males and females. When we analyze the entire dataset as a single group, these differences can get averaged out or hidden.")
+            st.success("Correct! Clinical data often contains meaningful differences between males and females, whether it's in symptoms, treatment response, or risk factors. When we analyze the entire dataset as a single group, these differences can get averaged out or hidden, leading to models that overlook critical insights.")
         else:
             st.error("Try again.")
 
@@ -486,6 +486,6 @@ elif page == "4. Multivariate Analysis":
     
     if st.button("Submit Question 2"):
         if q2_choice == "C":
-            st.success("Correct! Our main goal is to see if the model performs differently across the two groups. Are predictions more accurate for one sex than the other? These performance differences can point to underlying biological, clinical, or systemic factors.")
+            st.success("Correct! When we build separate models for males and females, our main goal is to see if the model performs differently across the two groups. Are predictions more accurate for one sex than the other? Are certain variables more predictive in one group? These performance differences can point to underlying biological, clinical, or systemic factors that should be considered in both research and clinical decision-making.")
         else:
             st.error("Try again.")
