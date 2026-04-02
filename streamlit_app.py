@@ -184,23 +184,15 @@ if page == "1. Data Processing":
         st.dataframe(df_processed.head(), use_container_width=True)
         st.caption("A preview of the first 5 rows of the clean dataset.")
 
-# === 2. EXPLORATORY ANALYSIS ===
-elif page == "2. Exploratory Analysis":
-    st.title("Exploratory Analysis")
-
+    # Moved Brief Exploratory Analysis here
+    st.divider()
     st.subheader("Brief Exploratory Analysis")
     st.markdown("""
     Now, please take a moment to check the Data Explorer. Notice that, this isn’t about deep analysis, just getting a feel for the data at a glance. Keep it simple, you’re just getting familiar with the variable before modeling.
     """)
     
-    with st.spinner("Loading Data Explorer..."):
-        df_raw = build_eicu_data()
-        df_explorer = df_raw.drop(columns=['patient_id', 'hospital_id', 'admission_id', 'admission_year', 'weight_discharge', 'discharge_location'])
-        
-        df_processed = get_processed_data(df_raw)
-        if 'gender' not in df_processed.columns:
-            df_processed['gender'] = df_raw['gender']
-
+    df_explorer = df_raw.drop(columns=['patient_id', 'hospital_id', 'admission_id', 'admission_year', 'weight_discharge', 'discharge_location'])
+    
     # --- DATA EXPLORER FILTERS ---
     with st.expander("Filter Data Explorer Options", expanded=False):
         c1, c2 = st.columns(2)
@@ -237,7 +229,16 @@ elif page == "2. Exploratory Analysis":
 
     st.dataframe(df_filtered, height=300, use_container_width=True)
     st.caption(f"Showing {len(df_filtered)} of {len(df_explorer)} patients.")
-    st.divider()
+
+# === 2. EXPLORATORY ANALYSIS ===
+elif page == "2. Exploratory Analysis":
+    st.title("Exploratory Analysis")
+
+    with st.spinner("Loading Data..."):
+        df_raw = build_eicu_data()
+        df_processed = get_processed_data(df_raw)
+        if 'gender' not in df_processed.columns:
+            df_processed['gender'] = df_raw['gender']
 
     # --- VISUALIZATION ---
     st.subheader("Visualize the sex-specific patterns")
